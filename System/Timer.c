@@ -19,7 +19,7 @@ void Timer_Init(void)
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStructure;				    //定义结构体变量
 	TIM_TimeBaseInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;		    //时钟分频，选择不分频，此参数用于配置滤波器时钟，不影响时基单元功能
 	TIM_TimeBaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up;	    //计数器模式，选择向上计数
-	TIM_TimeBaseInitStructure.TIM_Period = 20000 - 1;				    //计数周期，即ARR的值
+	TIM_TimeBaseInitStructure.TIM_Period = 40000 - 1;				    //计数周期，即ARR的值
 	TIM_TimeBaseInitStructure.TIM_Prescaler = 7200 - 1;				    //预分频器，即PSC的值
 	TIM_TimeBaseInitStructure.TIM_RepetitionCounter = 0;			    //重复计数器，高级定时器才会用到
 	TIM_TimeBaseInit(TIM2, &TIM_TimeBaseInitStructure);				    //将结构体变量交给TIM_TimeBaseInit，配置TIM2的时基单元	
@@ -32,13 +32,13 @@ void Timer_Init(void)
 	
 	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);					//开启TIM2的更新中断
 
-	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);// 配置NVIC为分组4
 	
-	NVIC_InitTypeDef NVIC_InitStructure;
-	NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
-	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+	NVIC_InitTypeDef NVIC_InitStructure; // 定义结构体变量
+	NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;// 选择配置NVIC的TIM2线
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;	// 指定NVIC线路使能
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 15; // 指定NVIC线路的抢占优先级为6，数值越小优先级越高，0-15
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;// 指定NVIC线路的响应优先级为15，数值越小优先级越高，0-15
 	NVIC_Init(&NVIC_InitStructure);
 
 	/*TIM使能*/

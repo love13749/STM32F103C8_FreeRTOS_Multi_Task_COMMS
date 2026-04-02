@@ -31,13 +31,6 @@ void Task_A(void *p)
   	ESP32_Init();               // 初始化ESP32-01S模块
   	flag = 1;                   // 任务A执行结束    
 
-	uxHighWaterMark_TaskA = uxTaskGetStackHighWaterMark(NULL); // 获取任务A的堆栈高水位标记
-	if(xSemaphoreTake(xOLEDMutex, portMAX_DELAY) == pdTRUE && uxHighWaterMark_TaskA < 50)//成功获取到OLED显示资源的互斥锁，说明可以安全地访问OLED显示资源，taskC在OLED上显示接收到的AD值，并释放互斥锁
-    {
-        OLED_ShowString(4, 1, "Task_A_ERROR"); // 显示任务A的堆栈高水位标记
-        xSemaphoreGive(xOLEDMutex);                   // 释放互斥锁
-    }
-
   	vTaskDelete(Task_A_Handle); // 当处于这个状态时说明ESP32-01S初始化完成，删除自己
 }
 
@@ -47,22 +40,12 @@ void Task_A(void *p)
 */
 void Task_B(void *p)
 {
-  	for(;;)
+	while(flag ==0) vTaskDelay(pdMS_TO_TICKS(1)); //如果任务A没有执行结束，说明ESP32-01S模块还没有准备好，taskB主动让出CPU，等待任务A执行完成
+  	Timer_Init(); //如果任务A执行结束，说明ESP32-01S模块已经准备好，初始化定时器，开启定时器中断，定时器中断函数TIM2_IRQHandler会被调用
+	for(;;)
   	{
-		if(!flag)//如果任务A没有执行结束，说明ESP32-01S模块还没有准备好，taskB主动让出CPU，等待任务A执行完成
-		{
-			vTaskDelay(pdMS_TO_TICKS(1));             // 主动让出 CPU 10ms
-			continue;
-		}
 		xQueueSend(xQueue_BC, &AD_Value[0], 0);    //将AD值发送到消息队列，供taskC使用
 		
-		uxHighWaterMark_TaskB = uxTaskGetStackHighWaterMark(NULL); // 获取任务B的堆栈高水位标记
-		if(xSemaphoreTake(xOLEDMutex, portMAX_DELAY) == pdTRUE && uxHighWaterMark_TaskB < 50)//成功获取到OLED显示资源的互斥锁，说明可以安全地访问OLED显示资源，taskC在OLED上显示接收到的AD值，并释放互斥锁
-    	{
-        	OLED_ShowString(4, 1, "Task_B_ERROR"); // 显示任务B的堆栈高水位标记
-        	xSemaphoreGive(xOLEDMutex);                   // 释放互斥锁
-    	}
-
 		vTaskDelay(pdMS_TO_TICKS(1));             // 主动让出 CPU 1ms，阻塞任务B，等待下一次发送机会
  	}
 }
@@ -73,17 +56,9 @@ void Task_B(void *p)
 */
 void Task_C(void *p)
 {
-	if(flag) 
-	{
-		Timer_Init(); //如果任务A执行结束，说明ESP32-01S模块已经准备好，初始化定时器，开启定时器中断，定时器中断函数TIM2_IRQHandler会被调用
-	}
+	while(flag == 0) vTaskDelay(pdMS_TO_TICKS(1)); //如果任务A没有执行结束，说明ESP32-01S模块还没有准备好，taskC主动让出CPU，等待任务A执行完成
 	while(1)
 	{
-		if(!flag) //如果任务A没有执行结束，说明ESP32-01S模块还没有准备好，taskC主动让出CPU，等待任务A执行完成
-		{
-			vTaskDelay(pdMS_TO_TICKS(1));             // 主动让出 CPU 1ms
-			continue;
-		}
 	    result = xQueueReceive(xQueue_BC, (void*)&Serial_Data, 0);//从消息队列接收数据，存储在Serial_Data变量中，等待时间为无限长
 		if(result != pdPASS) //如果接收失败，说明消息队列中没有数据，taskC主动让出CPU，等待下一次接收机会
 		{
@@ -97,13 +72,6 @@ void Task_C(void *p)
 			xSemaphoreGive(xOLEDMutex);                   // 释放互斥锁
 		}
 
-		uxHighWaterMark_TaskC = uxTaskGetStackHighWaterMark(NULL); // 获取任务C的堆栈高水位标记
-		if(xSemaphoreTake(xOLEDMutex, portMAX_DELAY) == pdTRUE && uxHighWaterMark_TaskC < 50)//成功获取到OLED显示资源的互斥锁，说明可以安全地访问OLED显示资源，taskC在OLED上显示接收到的AD值，并释放互斥锁
-    	{
-       		OLED_ShowString(4, 1, "Task_C_ERROR"); // 显示任务C的堆栈高水位标记
-        	xSemaphoreGive(xOLEDMutex);                   // 释放互斥锁
-    	}
-
 		vTaskDelay(pdMS_TO_TICKS(1));   // 主动让出 CPU 1ms，阻塞任务C，等待下一次接收机会
 	}
 }
@@ -113,14 +81,9 @@ void Task_C(void *p)
 */
 void Task_D(void *p)
 {
+	while(flag == 0) vTaskDelay(pdMS_TO_TICKS(1)); //如果任务A没有执行结束，说明ESP32-01S模块还没有准备好，taskD主动让出CPU，等待任务A执行完成
 	while(1)
 	{
-		if(!flag)//如果任务A没有执行结束，说明ESP32-01S模块还没有准备好，taskD主动让出CPU，等待任务A执行完成
-		{
-			vTaskDelay(pdMS_TO_TICKS(1));             // 主动让出 CPU 1ms
-			continue;
-		}
-
         if(Serial_RxFlag)//接收到串口发送的指令数据
 		{
 			if(strcmp(Serial_RxPacket, "LED1_ON") == 0)//接受到LED1亮的指令
@@ -165,13 +128,6 @@ void Task_D(void *p)
 			}
 			Serial_RxFlag = 0;//初始化接收标志位
 		}
-
-		uxHighWaterMark_TaskD = uxTaskGetStackHighWaterMark(NULL); // 获取任务D的堆栈高水位标记
-		if(xSemaphoreTake(xOLEDMutex, portMAX_DELAY) == pdTRUE && uxHighWaterMark_TaskD < 50)//成功获取到OLED显示资源的互斥锁，说明可以安全地访问OLED显示资源，taskC在OLED上显示接收到的AD值，并释放互斥锁
-    	{
-        	OLED_ShowString(4, 1, "Task_D_ERROR"); // 显示任务D的堆栈高水位标记
-        	xSemaphoreGive(xOLEDMutex);                   // 释放互斥锁
-    	}
 
 		vTaskDelay(pdMS_TO_TICKS(1));   // 主动让出 CPU 1ms，阻塞任务D，等待下一次接收机会
 	}
